@@ -61,15 +61,6 @@ class listener(StreamListener):
     def on_error(self, status):
         print(status)
 
-# we can read and write the data, but maybe we don't need to read/write anything
-# when we want to respond...
-# also consider printing the time too
-
-
-
-
-
-
 
 #Loading the saved MNB, LOGREG, SGD models with joblib
 classifier_f1 = open("../pickle_files/vectorizer_and_mnb.pkl", "rb")
@@ -89,27 +80,8 @@ tokenizer = TweetTokenizer(strip_handles=True,
                            reduce_len=True)
 
 
-
-
-# apply each model:
-# predict_df = eval_df.loc[(eval_df.in_reply_to=='NYCTSubway')][['tweet_text', 'predict_this']]\
-#                   .reset_index(drop=True)
-
-# log_predictions = []
-
-# predict_df.apply(lambda x: log_predictions.append(log_pipeline.predict(x)))
-# # log_predictions = log_pipeline.predict(log_predictions)
-
-# print(len(log_predictions[0]))
-# predict_df['log_predictions'] = log_predictions[0]
-
-
 def remove_punctuations(row):
     return re.sub(r'[^\w\s]','',row)
-
-
-
-
 
 try:
     auth = OAuthHandler(ckey, csecret)
