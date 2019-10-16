@@ -1,0 +1,9 @@
+*.json
+*.csv
+*.tsv
+*.pyc
+*.jpg
+*.png
+*.pickle
+*.pkl
+
