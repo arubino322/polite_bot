@@ -8,20 +8,25 @@ from datetime import datetime, timedelta
 
 from tweepy import Stream
 from tweepy import OAuthHandler
+from tweepy import API
 from tweepy.streaming import StreamListener
 
 from nltk.tokenize import TweetTokenizer
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
-# from nltk.corpus import stopwords
 
-ckey = os.environ.get('ckey')
-csecret = os.environ.get('csecret')
-atoken = os.environ.get('atoken')
-asecret = os.environ.get('asecret')
+from tweet_responses import positive_responses, negative_responses
+
+ckey = os.environ.get('pb_ckey')
+csecret = os.environ.get('pb_csecret')
+atoken = os.environ.get('pb_atoken')
+asecret = os.environ.get('pb_asecret')
 
 tokenizer = TweetTokenizer(strip_handles=True, 
                            preserve_case=False,
                            reduce_len=True)
+
+# instantiate vader object
+sid = SentimentIntensityAnalyzer()
 
 def read_pickle_files(filepath=None):
     inst = open(filepath, "rb")
@@ -29,9 +34,9 @@ def read_pickle_files(filepath=None):
     inst.close()
     return pipeline
 
-mnb_pipeline = read_pickle_files("../pickle_files/vectorizer_and_mnb.pkl")
-log_pipeline = read_pickle_files("../pickle_files/vectorizer_and_logreg.pkl")
-sgd_pipeline = read_pickle_files("../pickle_files/vectorizer_and_sgd.pkl")
+mnb_pipeline = read_pickle_files("./pickle_files/vectorizer_and_mnb.pkl")
+log_pipeline = read_pickle_files("./pickle_files/vectorizer_and_logreg.pkl")
+sgd_pipeline = read_pickle_files("./pickle_files/vectorizer_and_sgd.pkl")
 
 
 class listener(StreamListener):
@@ -46,6 +51,14 @@ class listener(StreamListener):
                         "isn't",'ma','mightn',"mightn't",'mustn',"mustn't",'needn',"needn't",'shan',"shan't",'shouldn',"shouldn't",'wasn',"wasn't",'weren',"weren't",'won',"won't",
                         'wouldn',"wouldn't",'rt', 'nyctsubway']
 
+    def check_json_key_value(self, data):
+        if json.loads(data).get('extended_tweet') != None:
+            return json.loads(data).get('extended_tweet').get('full_text')
+        else:
+            return json.loads(data).get('text')
+
+    def get_tweet_id(self, data):
+        return json.loads(data).get('id_str')
 
     def tokenize_and_transform(self, tweet):
         # remove punctuations
@@ -63,34 +76,50 @@ class listener(StreamListener):
         else:
             return 'no'
 
+    def how_should_we_respond(self, compound_score, do_they_agree, tweet_text):
+        if compound_score >= 0.45 and do_they_agree == 'all_positive':
+            return positive_responses(tweet_text)
+        elif compound_score <= -0.75 and do_they_agree == 'all_negative':
+            return negative_responses(tweet_text)
+
+    def reply(self, response, tweeter, tweet_id):
+        if response != None:
+            return api.update_status(status="@NYCTSubway @{} {}".format(tweeter, response),
+                                     in_reply_to_status_id="{}".format(tweet_id))
+
     def on_data(self, data):
         # try:
-        print('Created at: {}'.format(json.loads(data).get('created_at')))
-        print('Tweeter: {}'.format(json.loads(data).get('user').get('screen_name')))
-        print('In reply to: {}'.format(json.loads(data).get('in_reply_to_screen_name')))
-        if json.loads(data).get('extended_tweet') != None:
-            tokenized = self.tokenize_and_transform(json.loads(data).get('extended_tweet').get('full_text'))
-            mnb_prediction = mnb_pipeline.predict([tokenized])[0]
-            log_prediction = log_pipeline.predict([tokenized])[0]
-            sgd_prediction = log_pipeline.predict([tokenized])[0]
-            print(json.loads(data).get('extended_tweet').get('full_text'))
-            print(self.tokenize_and_transform(json.loads(data).get('extended_tweet').get('full_text')))
+        tweet = self.check_json_key_value(data)
+        tweeter = json.loads(data).get('user').get('screen_name')
+        # if json.loads(data).get('extended_tweet') != None:
+        tokenized = self.tokenize_and_transform(tweet)
+        tweet_id = self.get_tweet_id(data)
+        mnb_prediction = mnb_pipeline.predict([tokenized])[0]
+        log_prediction = log_pipeline.predict([tokenized])[0]
+        sgd_prediction = log_pipeline.predict([tokenized])[0]
+        do_they_agree = self.do_the_models_agree(mnb_prediction, log_prediction, sgd_prediction)
+        if do_they_agree != 'no':
+            print(tweet_id)
+            print('Created at: {}'.format(json.loads(data).get('created_at')))
+            print('Tweeter: {}'.format(tweeter))
+            print('In reply to: {}'.format(json.loads(data).get('in_reply_to_screen_name')))        
+            print(tweet)
             print("Multinomial Naive Bayes Prediction: {}".format(mnb_prediction))
             print("Logistic Regression Prediction: {}".format(log_prediction))
             print("Stochastic Gradient Descent Prediction: {}".format(sgd_prediction))
-        else:
-            tokenized = self.tokenize_and_transform(json.loads(data).get('text'))
-            mnb_prediction = mnb_pipeline.predict([tokenized])[0]
-            log_prediction = log_pipeline.predict([tokenized])[0]
-            sgd_prediction = log_pipeline.predict([tokenized])[0]
-            print(json.loads(data).get('text'))
-            print(self.tokenize_and_transform(json.loads(data).get('text')))
-            print("Multinomial Naive Bayes Prediction: {}".format(mnb_prediction))
-            print("Logistic Regression Prediction: {}".format(log_prediction))
-            print("Stochastic Gradient Descent Prediction: {}".format(sgd_prediction))
+            print(self.do_the_models_agree(mnb_prediction, log_prediction, sgd_prediction))
+            # compound VADER score
+            compound_score = sid.polarity_scores(tokenized)['compound']
+            print("VADER Compound Score: {}".format(compound_score))
+            # How should we respond?
+            response = self.how_should_we_respond(compound_score, 
+                                                  self.do_the_models_agree(mnb_prediction, log_prediction, sgd_prediction),
+                                                  tweet)
+            print("Response: {}".format(response))
+            self.reply(response, tweeter, tweet_id)
         print('-'*75)
         if json.loads(data).get('in_reply_to_screen_name') == 'NYCTSubway':
-            saveFile = open('../data/nyctsubway_stream_oct10_on.csv', 'a')
+            saveFile = open('./data/nyctsubway_stream_oct10_on.csv', 'a')
             saveFile.write(data)
             saveFile.write('\n')
             saveFile.close()
@@ -107,7 +136,10 @@ class listener(StreamListener):
 # try:
 auth = OAuthHandler(ckey, csecret)
 auth.set_access_token(atoken, asecret)
+# tweepy api class
+api = API(auth)
 twitterStream = Stream(auth, listener())
 twitterStream.filter(track=['@NYCTSubway'])
 # except BaseException:
 #     print('failed authorization')
+
