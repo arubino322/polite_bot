@@ -88,58 +88,56 @@ class listener(StreamListener):
                                      in_reply_to_status_id="{}".format(tweet_id))
 
     def on_data(self, data):
-        # try:
-        tweet = self.check_json_key_value(data)
-        tweeter = json.loads(data).get('user').get('screen_name')
-        # if json.loads(data).get('extended_tweet') != None:
-        tokenized = self.tokenize_and_transform(tweet)
-        tweet_id = self.get_tweet_id(data)
-        mnb_prediction = mnb_pipeline.predict([tokenized])[0]
-        log_prediction = log_pipeline.predict([tokenized])[0]
-        sgd_prediction = log_pipeline.predict([tokenized])[0]
-        do_they_agree = self.do_the_models_agree(mnb_prediction, log_prediction, sgd_prediction)
-        if do_they_agree != 'no':
-            print(tweet_id)
-            print('Created at: {}'.format(json.loads(data).get('created_at')))
-            print('Tweeter: {}'.format(tweeter))
-            print('In reply to: {}'.format(json.loads(data).get('in_reply_to_screen_name')))        
-            print(tweet)
-            print("Multinomial Naive Bayes Prediction: {}".format(mnb_prediction))
-            print("Logistic Regression Prediction: {}".format(log_prediction))
-            print("Stochastic Gradient Descent Prediction: {}".format(sgd_prediction))
-            print(self.do_the_models_agree(mnb_prediction, log_prediction, sgd_prediction))
-            # compound VADER score
-            compound_score = sid.polarity_scores(tokenized)['compound']
-            print("VADER Compound Score: {}".format(compound_score))
-            # How should we respond?
-            response = self.how_should_we_respond(compound_score, 
-                                                  self.do_the_models_agree(mnb_prediction, log_prediction, sgd_prediction),
-                                                  tweet)
-            print("Response: {}".format(response))
-            self.reply(response, tweeter, tweet_id)
-        print('-'*75)
-        if json.loads(data).get('in_reply_to_screen_name') == 'NYCTSubway':
-            saveFile = open('./data/nyctsubway_stream_oct10_on.csv', 'a')
-            saveFile.write(data)
-            saveFile.write('\n')
-            saveFile.close()
-            return True
-        # except BaseException:
-        #     print('failed ondata')
-        #     time.sleep(5)
+        try:
+            tweet = self.check_json_key_value(data)
+            tweeter = json.loads(data).get('user').get('screen_name')
+            tokenized = self.tokenize_and_transform(tweet)
+            tweet_id = self.get_tweet_id(data)
+            mnb_prediction = mnb_pipeline.predict([tokenized])[0]
+            log_prediction = log_pipeline.predict([tokenized])[0]
+            sgd_prediction = log_pipeline.predict([tokenized])[0]
+            do_they_agree = self.do_the_models_agree(mnb_prediction, log_prediction, sgd_prediction)
+            if do_they_agree != 'no':
+                print(tweet_id)
+                print('Created at: {}'.format(json.loads(data).get('created_at')))
+                print('Tweeter: {}'.format(tweeter))
+                print('In reply to: {}'.format(json.loads(data).get('in_reply_to_screen_name')))
+                print(tweet)
+                print("Multinomial Naive Bayes Prediction: {}".format(mnb_prediction))
+                print("Logistic Regression Prediction: {}".format(log_prediction))
+                print("Stochastic Gradient Descent Prediction: {}".format(sgd_prediction))
+                print(self.do_the_models_agree(mnb_prediction, log_prediction, sgd_prediction))
+                # compound VADER score
+                compound_score = sid.polarity_scores(tokenized)['compound']
+                print("VADER Compound Score: {}".format(compound_score))
+                # How should we respond?
+                response = self.how_should_we_respond(compound_score, 
+                                                      self.do_the_models_agree(mnb_prediction, log_prediction, sgd_prediction),
+                                                      tweet)
+                print("Response: {}".format(response))
+                self.reply(response, tweeter, tweet_id)
+            print('-'*75)
+            if json.loads(data).get('in_reply_to_screen_name') == 'NYCTSubway':
+                saveFile = open('./data/nyctsubway_stream_oct10_on.csv', 'a')
+                saveFile.write(data)
+                saveFile.write('\n')
+                saveFile.close()
+                return True
+        except BaseException:
+            print('failed ondata')
+            time.sleep(5)
 
     def on_error(self, status):
         print(status)
 
 
 
-# try:
-auth = OAuthHandler(ckey, csecret)
-auth.set_access_token(atoken, asecret)
-# tweepy api class
-api = API(auth)
-twitterStream = Stream(auth, listener())
-twitterStream.filter(track=['@NYCTSubway'])
-# except BaseException:
-#     print('failed authorization')
-
+try:
+    auth = OAuthHandler(ckey, csecret)
+    auth.set_access_token(atoken, asecret)
+    # tweepy api class
+    api = API(auth)
+    twitterStream = Stream(auth, listener())
+    twitterStream.filter(track=['@NYCTSubway'])
+except BaseException:
+    print('failed authorization')
