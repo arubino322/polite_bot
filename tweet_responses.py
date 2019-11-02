@@ -55,7 +55,7 @@ def negative_responses(tweet):
              'jackass', ' shit', 'shitty']
     curse_replies = ["Watch your language please there are children here. ", "LANGUAGE!! ", 
                     "Maybe if you were nicer they'd help more. ", "Spread love not hate. ",
-                    "It'll be ok boss. "]
+                    "It'll be ok boss. ", "What's your deal? "]
     if any(x in tweet.lower() for x in curse):
         response += random.choice(curse_replies)
 
